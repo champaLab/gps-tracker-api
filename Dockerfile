@@ -11,10 +11,10 @@ COPY lib/ ./lib/
 RUN chown -R node:node /app
 USER node
 
-ENV NODE_ENV=production
-ENV HOST=0.0.0.0
-ENV PORT=31111
+# ENV NODE_ENV=production
+# ENV HOST=0.0.0.0
+# ENV PORT=31111
 
-EXPOSE 31111
+# EXPOSE 31111
 
 CMD ["node", "server.js"]

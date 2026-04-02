@@ -8,3 +8,6 @@ data:
   HOST: "0.0.0.0"
   PORT: "31111"
   BASE_PATH: "/api"
+  LOG_TCP_DEBUG: "1"
+  LOG_NON_GPS: "1"
+  LOG_RAW: "1"
