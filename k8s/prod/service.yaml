@@ -14,5 +14,5 @@ spec:
     - name: gps-tracker-api-port
       protocol: TCP
       port: 80
-      targetPort: 1122
+      targetPort: 31111
       nodePort: 31111
