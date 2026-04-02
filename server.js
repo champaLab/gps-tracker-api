@@ -291,7 +291,7 @@ const server = net.createServer((socket) => {
   let buffer = Buffer.alloc(0);
 
   socket.on('data', (chunk) => {
-    logDataBeforeConsume(remote, buffer, chunk);
+    // logDataBeforeConsume(remote, buffer, chunk);
     const binary = parseBinaryPacket(chunk);
     if (binary) {
       logJson(binary);
