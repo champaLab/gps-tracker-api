@@ -2,7 +2,7 @@ const net = require('net');
 const { parseST901Data, isSt901GpsReport } = require('./lib/parser.js');
 
 const HOST = process.env.HOST ?? '0.0.0.0';
-const PORT = Number(process.env.PORT ?? 1122);
+const PORT = Number(process.env.PORT ?? 31111);
 const LOG_NON_GPS = process.env.LOG_NON_GPS === '1';
 const LOG_RAW = process.env.LOG_RAW === '1';
 

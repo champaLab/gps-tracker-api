@@ -6,5 +6,5 @@ metadata:
 data:
   NODE_ENV: "gps-tracker"
   HOST: "0.0.0.0"
-  PORT: "1122"
+  PORT: "31111"
   BASE_PATH: "/api"
