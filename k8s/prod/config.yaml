@@ -11,3 +11,4 @@ data:
   LOG_TCP_DEBUG: "1"
   LOG_NON_GPS: "1"
   LOG_RAW: "1"
+  LOG_DATA_BEFORE_CONSUME: "1"
