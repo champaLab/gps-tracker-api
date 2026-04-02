@@ -1,6 +1,11 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { parseST901Data, parseMapsUrl, isSt901GpsReport } = require('../lib/parser.js');
+const {
+  parseST901Data,
+  parseMapsUrl,
+  parseHqData,
+  isSt901GpsReport,
+} = require('../lib/parser.js');
 
 test('parseST901Data: full ST-901 style line', () => {
   const raw =
@@ -41,4 +46,20 @@ test('isSt901GpsReport: false for HTTP probe / no GPS', () => {
 test('isSt901GpsReport: false when coords missing', () => {
   const p = parseST901Data('hello Date:2026-04-02 Time:12:00:00 ID:1');
   assert.strictEqual(isSt901GpsReport(p), false);
+});
+
+test('parseHqData: parse *HQ frame with ddmm coords', () => {
+  const raw =
+    '*HQ,9170225361,V6,062438,V,1758.4584,N,10236.9522,E,0.00,0.00,020426,FFFFFBFF,457,1,289,20858,89856013101241430754,#';
+  const p = parseHqData(raw);
+  assert.ok(!p.parseError);
+  assert.strictEqual(p.ID, '9170225361');
+  assert.strictEqual(p.VER, 'V6');
+  assert.strictEqual(p.Date, '020426');
+  assert.strictEqual(p.Time, '062438');
+  // 17°58.4584' => 17.974306666...
+  assert.ok(Math.abs(p.latitude - 17.9743066667) < 1e-6);
+  // 102°36.9522' => 102.61587
+  assert.ok(Math.abs(p.longitude - 102.61587) < 1e-6);
+  assert.strictEqual(isSt901GpsReport(p), true);
 });

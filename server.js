@@ -1,5 +1,5 @@
 const net = require('net');
-const { parseST901Data, isSt901GpsReport } = require('./lib/parser.js');
+const { parseST901Data, parseHqData, isSt901GpsReport } = require('./lib/parser.js');
 
 const HOST = process.env.HOST ?? '0.0.0.0';
 const PORT = Number(process.env.PORT ?? 31111);
@@ -18,7 +18,7 @@ function logJson(obj) {
 
 function gpsLogRecord(remote, parsed) {
   const row = {
-    type: 'st901_gps',
+    type: parsed.proto === 'HQ' ? 'hq_gps' : 'st901_gps',
     receivedAt: new Date().toISOString(),
     remote,
     deviceId: parsed.ID != null ? String(parsed.ID) : null,
@@ -31,12 +31,17 @@ function gpsLogRecord(remote, parsed) {
     battery: parsed.BAT,
     url: parsed.url,
   };
+  if (parsed.proto === 'HQ') {
+    row.ver = parsed.VER;
+    row.status = parsed.STATUS;
+    row.course = parsed.Course;
+  }
   if (LOG_RAW) row.raw = parsed.raw;
   return row;
 }
 
 function processOneLine(remote, rawData) {
-  const parsed = parseST901Data(rawData);
+  const parsed = rawData.startsWith('*HQ') ? parseHqData(rawData) : parseST901Data(rawData);
   if (isSt901GpsReport(parsed)) {
     logJson(gpsLogRecord(remote, parsed));
   } else if (LOG_NON_GPS) {
@@ -71,9 +76,20 @@ function logDataBeforeConsume(remote, buffer, chunk) {
 
 function consumeCompleteLines(remote, buffer, chunk) {
   let buf = buffer + chunk.toString('utf8');
+
+  // Many GPS trackers (incl. HQ frames) terminate messages with '#'
+  while (true) {
+    const idx = buf.indexOf('#');
+    if (idx === -1) break;
+    const frame = buf.slice(0, idx + 1);
+    buf = buf.slice(idx + 1);
+    const trimmed = frame.trim();
+    if (trimmed) processOneLine(remote, trimmed);
+  }
+
+  // Also accept newline-delimited packets
   const parts = buf.split(LINE_SPLIT);
   buf = parts.pop() ?? '';
-
   for (const part of parts) {
     const rawData = part.trim();
     if (rawData) processOneLine(remote, rawData);
