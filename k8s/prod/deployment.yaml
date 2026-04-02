@@ -25,7 +25,7 @@ spec:
       # nodeName: vmi2282187
       containers:
         - name: gps-tracker-api
-          image: ghcr.io/champalab/gps-tracker-api:d2a6f5837dc3c76d20bda4e7311472de95cb9fd8
+          image: ghcr.io/champalab/gps-tracker-api:01736960506f19f8fb3e59d95828179ded619a23
           imagePullPolicy: Always
           resources:
             requests:
