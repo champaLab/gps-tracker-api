@@ -57,6 +57,12 @@ test('parseHqData: parse *HQ frame with ddmm coords', () => {
   assert.strictEqual(p.VER, 'V6');
   assert.strictEqual(p.Date, '020426');
   assert.strictEqual(p.Time, '062438');
+  assert.strictEqual(p.FLAGS, 'FFFFFBFF');
+  assert.strictEqual(p.MCC, 457);
+  assert.strictEqual(p.MNC, 1);
+  assert.strictEqual(p.LAC, 289);
+  assert.strictEqual(p.CELLID, 20858);
+  assert.strictEqual(p.IMEI, '89856013101241430754');
   // 17°58.4584' => 17.974306666...
   assert.ok(Math.abs(p.latitude - 17.9743066667) < 1e-6);
   // 102°36.9522' => 102.61587

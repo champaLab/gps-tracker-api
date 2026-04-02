@@ -29,17 +29,33 @@ function parseSpeedToKmh(speed) {
   return Number.isFinite(n) ? n : null;
 }
 
+function pad2(s) {
+  return String(s).padStart(2, '0');
+}
+
+function hqTimeToHms(time) {
+  const t = String(time ?? '').trim();
+  if (!/^\d{6}$/.test(t)) return null;
+  return `${t.slice(0, 2)}:${t.slice(2, 4)}:${t.slice(4, 6)}`;
+}
+
+function hqDateToYmd(date) {
+  const d = String(date ?? '').trim();
+  if (!/^\d{6}$/.test(d)) return null; // ddmmyy
+  const dd = d.slice(0, 2);
+  const mm = d.slice(2, 4);
+  const yy = d.slice(4, 6);
+  const year = 2000 + Number(yy);
+  if (!Number.isFinite(year)) return null;
+  return `${year.toString().padStart(4, '0')}-${mm}-${dd}`;
+}
+
 function toIsoTimestamp(parsed) {
   // HQ: Date = ddmmyy, Time = hhmmss (UTC unknown; treat as local device time without TZ conversion)
   if (parsed?.proto === 'HQ' && /^\d{6}$/.test(parsed.Date ?? '') && /^\d{6}$/.test(parsed.Time ?? '')) {
-    const dd = parsed.Date.slice(0, 2);
-    const mm = parsed.Date.slice(2, 4);
-    const yy = parsed.Date.slice(4, 6);
-    const hh = parsed.Time.slice(0, 2);
-    const mi = parsed.Time.slice(2, 4);
-    const ss = parsed.Time.slice(4, 6);
-    const year = 2000 + Number(yy);
-    if (Number.isFinite(year)) return `${year.toString().padStart(4, '0')}-${mm}-${dd}T${hh}:${mi}:${ss}`;
+    const ymd = hqDateToYmd(parsed.Date);
+    const hms = hqTimeToHms(parsed.Time);
+    if (ymd && hms) return `${ymd}T${hms}`;
   }
 
   // ST-901: Date = yyyy-mm-dd, Time = hh:mm:ss
@@ -53,11 +69,60 @@ function toIsoTimestamp(parsed) {
 }
 
 function gpsLogRecord(remote, parsed) {
+  if (parsed.proto === 'HQ') {
+    const date = hqDateToYmd(parsed.Date);
+    const time = hqTimeToHms(parsed.Time);
+    const timestamp = date && time ? `${date}T${time}` : toIsoTimestamp(parsed);
+
+    const latRaw =
+      parsed.LAT_DDMM && parsed.LAT_HEMI ? `${parsed.LAT_DDMM} ${parsed.LAT_HEMI}` : null;
+    const lonRaw =
+      parsed.LON_DDMM && parsed.LON_HEMI ? `${parsed.LON_DDMM} ${parsed.LON_HEMI}` : null;
+
+    return {
+      protocol: 'HQ',
+      deviceId: parsed.ID != null ? String(parsed.ID) : null,
+      version: parsed.VER ?? null,
+
+      time,
+      date,
+      timestamp,
+
+      gpsStatus: String(parsed.STATUS ?? '').toUpperCase() === 'V' ? 'Valid' : 'Invalid',
+
+      latitude: {
+        raw: latRaw,
+        decimal: Number(parsed.latitude),
+      },
+      longitude: {
+        raw: lonRaw,
+        decimal: Number(parsed.longitude),
+      },
+
+      speedKmh: parseSpeedToKmh(parsed.Speed),
+      course: parsed.Course != null ? Number(parsed.Course) : null,
+
+      flags: parsed.FLAGS ?? null,
+
+      gsm: {
+        mcc: Number.isFinite(parsed.MCC) ? parsed.MCC : null,
+        mnc: Number.isFinite(parsed.MNC) ? parsed.MNC : null,
+        lac: Number.isFinite(parsed.LAC) ? parsed.LAC : null,
+        cellId: Number.isFinite(parsed.CELLID) ? parsed.CELLID : null,
+      },
+
+      imei: parsed.IMEI ?? null,
+
+      ...(LOG_RAW ? { raw: parsed.raw } : {}),
+    };
+  }
+
+  // fallback: keep previous compact schema for ST-901
   const observedAt = toIsoTimestamp(parsed);
   const row = {
-    type: parsed.proto === 'HQ' ? 'hq_gps' : 'st901_gps',
+    type: 'st901_gps',
     receivedAt: new Date().toISOString(),
-    observedAt, // device-reported time (best effort)
+    observedAt,
     remote,
     deviceId: parsed.ID != null ? String(parsed.ID) : null,
     latitude: Number(parsed.latitude),
@@ -69,11 +134,6 @@ function gpsLogRecord(remote, parsed) {
     battery: parsed.BAT,
     url: parsed.url,
   };
-  if (parsed.proto === 'HQ') {
-    row.ver = parsed.VER;
-    row.status = parsed.STATUS;
-    row.course = parsed.Course != null ? Number(parsed.Course) : null;
-  }
   if (LOG_RAW) row.raw = parsed.raw;
   return row;
 }
