@@ -11,6 +11,8 @@ const LOG_DATA_BEFORE_CONSUME = process.env.LOG_DATA_BEFORE_CONSUME !== '0';
 
 /** Line breaks: LF, CRLF, or old Mac CR (some trackers use CR only). */
 const LINE_SPLIT = /\r\n|\n|\r/g;
+const STAR = 0x2a; // '*'
+const HASH = 0x23; // '#'
 
 function logJson(obj) {
   console.log(JSON.stringify(obj));
@@ -55,10 +57,18 @@ function processOneLine(remote, rawData) {
   }
 }
 
+function safeTextPreview(buf, limit) {
+  const s = buf.toString('utf8');
+  return s.length > limit ? `${s.slice(0, limit)}…` : s;
+}
+
+function hexPreview(buf, bytes = 80) {
+  return buf.subarray(0, Math.min(buf.length, bytes)).toString('hex');
+}
+
 function logDataBeforeConsume(remote, buffer, chunk) {
   if (!LOG_DATA_BEFORE_CONSUME || !chunk?.length) return;
-  const text = chunk.toString('utf8');
-  const preview = text.length > 200 ? `${text.slice(0, 200)}…` : text;
+  const preview = safeTextPreview(chunk, 200);
   const row = {
     type: 'data_before_consume',
     receivedAt: new Date().toISOString(),
@@ -68,53 +78,58 @@ function logDataBeforeConsume(remote, buffer, chunk) {
     preview,
   };
   if (LOG_TCP_DEBUG) {
-    row.bufferPreview =
-      buffer.length > 120 ? `${buffer.slice(0, 120)}…` : buffer;
+    row.chunkHex = hexPreview(chunk, 80);
+    row.bufferHex = hexPreview(buffer, 80);
+    // show readable tail of buffer (often contains *HQ)
+    const tail = buffer.subarray(Math.max(0, buffer.length - 240));
+    row.bufferTailText = safeTextPreview(tail, 240);
   }
   logJson(row);
 }
 
-function consumeCompleteLines(remote, buffer, chunk) {
-  let buf = buffer + chunk.toString('utf8');
+function consumeFramesAndLines(remote, buffer, chunk) {
+  // binary-safe: keep buffer as Buffer, extract ASCII frames only when complete
+  let buf = Buffer.concat([buffer, chunk]);
 
-  // Many GPS trackers (incl. HQ frames) terminate messages with '#'
+  // Extract *...# frames (HQ uses this)
   while (true) {
-    const idx = buf.indexOf('#');
-    if (idx === -1) break;
-    const frame = buf.slice(0, idx + 1);
-    buf = buf.slice(idx + 1);
-    const trimmed = frame.trim();
-    if (trimmed) processOneLine(remote, trimmed);
-  }
+    const start = buf.indexOf(STAR);
+    if (start === -1) {
+      // no frame start, keep last small tail only
+      return buf.length > 1024 ? buf.subarray(buf.length - 256) : buf;
+    }
+    if (start > 0) buf = buf.subarray(start);
+    const end = buf.indexOf(HASH, 1);
+    if (end === -1) {
+      // incomplete frame, keep it (cap size)
+      return buf.length > 64 * 1024 ? buf.subarray(0, 64 * 1024) : buf;
+    }
 
-  // Also accept newline-delimited packets
-  const parts = buf.split(LINE_SPLIT);
-  buf = parts.pop() ?? '';
-  for (const part of parts) {
-    const rawData = part.trim();
-    if (rawData) processOneLine(remote, rawData);
+    const frameBuf = buf.subarray(0, end + 1);
+    buf = buf.subarray(end + 1);
+    const frameText = frameBuf.toString('utf8').trim();
+    if (frameText) processOneLine(remote, frameText);
   }
-
-  return buf;
 }
 
 const server = net.createServer((socket) => {
   const remote = `${socket.remoteAddress}:${socket.remotePort}`;
   console.log(`Device connected: ${remote}`);
 
-  let buffer = '';
+  let buffer = Buffer.alloc(0);
 
   socket.on('data', (chunk) => {
     logDataBeforeConsume(remote, buffer, chunk);
-    buffer = consumeCompleteLines(remote, buffer, chunk);
+    buffer = consumeFramesAndLines(remote, buffer, chunk);
   });
 
   socket.on('close', () => {
-    const tail = buffer.trim();
-    if (tail) {
-      processOneLine(remote, tail);
+    // Only flush tail if it looks like a text packet (avoid logging binary junk)
+    const tailText = buffer.toString('utf8').trim();
+    if (tailText.startsWith('*') || tailText.includes(' Date:') || tailText.startsWith('http')) {
+      processOneLine(remote, tailText);
     }
-    buffer = '';
+    buffer = Buffer.alloc(0);
     console.log(`Device disconnected: ${remote}`);
   });
 
