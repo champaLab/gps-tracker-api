@@ -18,25 +18,61 @@ function logJson(obj) {
   console.log(JSON.stringify(obj));
 }
 
+function parseSpeedToKmh(speed) {
+  if (speed == null) return null;
+  const s = String(speed).trim();
+  // "0KM/H", "45KM/H"
+  const kmh = s.match(/^([+-]?\d+(\.\d+)?)\s*KM\/H$/i);
+  if (kmh) return Number(kmh[1]);
+  // "0.00"
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function toIsoTimestamp(parsed) {
+  // HQ: Date = ddmmyy, Time = hhmmss (UTC unknown; treat as local device time without TZ conversion)
+  if (parsed?.proto === 'HQ' && /^\d{6}$/.test(parsed.Date ?? '') && /^\d{6}$/.test(parsed.Time ?? '')) {
+    const dd = parsed.Date.slice(0, 2);
+    const mm = parsed.Date.slice(2, 4);
+    const yy = parsed.Date.slice(4, 6);
+    const hh = parsed.Time.slice(0, 2);
+    const mi = parsed.Time.slice(2, 4);
+    const ss = parsed.Time.slice(4, 6);
+    const year = 2000 + Number(yy);
+    if (Number.isFinite(year)) return `${year.toString().padStart(4, '0')}-${mm}-${dd}T${hh}:${mi}:${ss}`;
+  }
+
+  // ST-901: Date = yyyy-mm-dd, Time = hh:mm:ss
+  if (typeof parsed?.Date === 'string' && typeof parsed?.Time === 'string') {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(parsed.Date) && /^\d{2}:\d{2}:\d{2}$/.test(parsed.Time)) {
+      return `${parsed.Date}T${parsed.Time}`;
+    }
+  }
+
+  return null;
+}
+
 function gpsLogRecord(remote, parsed) {
+  const observedAt = toIsoTimestamp(parsed);
   const row = {
     type: parsed.proto === 'HQ' ? 'hq_gps' : 'st901_gps',
     receivedAt: new Date().toISOString(),
+    observedAt, // device-reported time (best effort)
     remote,
     deviceId: parsed.ID != null ? String(parsed.ID) : null,
-    latitude: parsed.latitude,
-    longitude: parsed.longitude,
+    latitude: Number(parsed.latitude),
+    longitude: Number(parsed.longitude),
     date: parsed.Date,
     time: parsed.Time,
     fix: parsed.FIX,
-    speed: parsed.Speed,
+    speedKmh: parseSpeedToKmh(parsed.Speed),
     battery: parsed.BAT,
     url: parsed.url,
   };
   if (parsed.proto === 'HQ') {
     row.ver = parsed.VER;
     row.status = parsed.STATUS;
-    row.course = parsed.Course;
+    row.course = parsed.Course != null ? Number(parsed.Course) : null;
   }
   if (LOG_RAW) row.raw = parsed.raw;
   return row;
