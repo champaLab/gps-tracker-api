@@ -1,0 +1,10 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: gps-tracker-config
+  namespace: prod
+data:
+  NODE_ENV: "gps-tracker"
+  HOST: "0.0.0.0"
+  PORT: "1122"
+  BASE_PATH: "/api"

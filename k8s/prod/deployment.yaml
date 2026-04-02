@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gps-tracker-api
+  namespace: prod
+  labels:
+    app: gps-tracker-api
+spec:
+  selector:
+    matchLabels:
+      app: gps-tracker-api
+  replicas: 1
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: gps-tracker-api
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      # nodeName: vmi2282187
+      containers:
+        - name: gps-tracker-api
+          image: ghcr.io/champalab/gps-tracker-api:c659e32f289094e920b92d0f1cf291717eccf524
+          imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: 500m
+              memory: 100Mi
+            limits:
+              cpu: 2000m
+              memory: 2048Mi
+          livenessProbe:
+            tcpSocket:
+              port: 1122
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: 1122
+            initialDelaySeconds: 5
+            timeoutSeconds: 2
+            successThreshold: 1
+            failureThreshold: 3
+            periodSeconds: 10
+          envFrom:
+            - configMapRef:
+                name: gps-tracker-api-config
+          ports:
+            - containerPort: 1122
+              name: http
+          volumeMounts:
+            - name: localtime
+              mountPath: /etc/localtime
+            # - name: vol-gps-tracker-api-prod
+            #   mountPath: /app/logs
+            #   subPath: vol-gps-tracker-api-prod/logs
+            # - name: vol-gps-tracker-api-prod
+            #   mountPath: /app/uploads
+            #   subPath: vol-gps-tracker-api-prod/uploads
+      volumes:
+        - name: localtime
+          hostPath:
+            path: /usr/share/zoneinfo/Asia/Bangkok
+        # - name: vol-gps-tracker-api-prod
+        #   nfs:
+        #     path: /mnt/k8s
+        #     server: gfs-01
+      restartPolicy: Always

@@ -1,0 +1,12 @@
+{
+  "name": "gps-tracker-st901",
+  "version": "1.0.0",
+  "description": "TCP server for ST-901 GPS tracker — raw packets to JSON",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
