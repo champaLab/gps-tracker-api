@@ -131,8 +131,8 @@ function consumeFramesAndLines(remote, buffer, chunk) {
   while (true) {
     const start = buf.indexOf(STAR);
     if (start === -1) {
-      // no frame start, keep last small tail only
-      return buf.length > 1024 ? buf.subarray(buf.length - 256) : buf;
+      // no frame start (often binary heartbeat). Keep only a small tail to prevent growth.
+      return buf.subarray(Math.max(0, buf.length - 256));
     }
     if (start > 0) buf = buf.subarray(start);
     const end = buf.indexOf(HASH, 1);
