@@ -4,7 +4,9 @@
   "description": "TCP server for ST-901 GPS tracker — raw packets to JSON",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test",
+    "mock": "node scripts/mock-device.js"
   },
   "engines": {
     "node": ">=18"
