@@ -18,6 +18,82 @@ function logJson(obj) {
   console.log(JSON.stringify(obj));
 }
 
+function bcdBytesToDigits(buf, offset, digitCount) {
+  const byteCount = Math.ceil(digitCount / 2);
+  if (offset + byteCount > buf.length) return null;
+  let out = '';
+  for (let i = 0; i < byteCount; i++) {
+    const b = buf[offset + i];
+    const hi = (b >> 4) & 0x0f;
+    const lo = b & 0x0f;
+    out += String(hi);
+    if (out.length < digitCount) out += String(lo);
+  }
+  return out.slice(0, digitCount);
+}
+
+function ddmmDigitsToDecimal(digits, degDigits) {
+  const s = String(digits ?? '');
+  if (!/^\d+$/.test(s) || s.length < degDigits + 2) return null;
+  const deg = Number(s.slice(0, degDigits));
+  const minDigits = s.slice(degDigits); // starts with 2-digit minutes integer
+  const minInt = minDigits.slice(0, 2);
+  const minFrac = minDigits.slice(2);
+  const minutes = Number(minFrac ? `${minInt}.${minFrac}` : minInt);
+  if (!Number.isFinite(deg) || !Number.isFinite(minutes)) return null;
+  return deg + minutes / 60;
+}
+
+function parseBinaryPacket(chunk) {
+  // Layout inferred from your sample:
+  // 0: '$' (0x24)
+  // 1..5: deviceId (10 digits, BCD)
+  // 6..8: time hhmmss (BCD)
+  // 9..11: date ddmmyy (BCD)
+  // 12..15: latitude ddmm.mmmm digits (BCD -> 8 digits)
+  // 16: status byte (we treat non-zero as Valid)
+  // 17..20: longitude digits (BCD -> 8 digits, interpreted as ddd + mm.mmm)
+  // 21..24: unknown (often 0c000000)
+  // 25..28: flags (4 bytes)
+  if (!chunk?.length || chunk[0] !== 0x24 || chunk.length < 29) return null;
+
+  const deviceId = bcdBytesToDigits(chunk, 1, 10);
+  const timeDigits = bcdBytesToDigits(chunk, 6, 6);
+  const dateDigits = bcdBytesToDigits(chunk, 9, 6);
+  const latDigits = bcdBytesToDigits(chunk, 12, 8);
+  const statusByte = chunk[16];
+  const lonDigits = bcdBytesToDigits(chunk, 17, 8);
+  const flags = chunk.subarray(25, 29).toString('hex').toUpperCase();
+
+  const date = hqDateToYmd(dateDigits);
+  const time = hqTimeToHms(timeDigits);
+  const timestamp = date && time ? `${date}T${time}` : null;
+
+  const latitude = ddmmDigitsToDecimal(latDigits, 2);
+  // lon is 8 digits in this packet: interpret as ddd + mm.mmm (3 decimal places)
+  // Example: 10236952 => 102°36.952' => 102.6158667
+  const longitude = ddmmDigitsToDecimal(lonDigits, 3);
+
+  if (!deviceId || !date || !time || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null;
+  }
+
+  return {
+    protocol: 'binary',
+    deviceId,
+    date,
+    time,
+    timestamp,
+    latitude,
+    longitude,
+    speedKmh: 0,
+    course: 0,
+    gpsStatus: statusByte ? 'Valid' : 'Invalid',
+    flags,
+    source: 'binary_packet',
+  };
+}
+
 function parseSpeedToKmh(speed) {
   if (speed == null) return null;
   const s = String(speed).trim();
@@ -216,6 +292,10 @@ const server = net.createServer((socket) => {
 
   socket.on('data', (chunk) => {
     logDataBeforeConsume(remote, buffer, chunk);
+    const binary = parseBinaryPacket(chunk);
+    if (binary) {
+      logJson(binary);
+    }
     buffer = consumeFramesAndLines(remote, buffer, chunk);
   });
 
