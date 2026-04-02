@@ -13,8 +13,8 @@ USER node
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
-ENV PORT=1122
+ENV PORT=31111
 
-EXPOSE 1122
+EXPOSE 31111
 
 CMD ["node", "server.js"]

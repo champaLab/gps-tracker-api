@@ -36,7 +36,7 @@ spec:
               memory: 2048Mi
           livenessProbe:
             tcpSocket:
-              port: 1122
+              port: 31111
             initialDelaySeconds: 5
             timeoutSeconds: 5
             successThreshold: 1
@@ -44,7 +44,7 @@ spec:
             periodSeconds: 10
           readinessProbe:
             tcpSocket:
-              port: 1122
+              port: 31111
             initialDelaySeconds: 5
             timeoutSeconds: 2
             successThreshold: 1
@@ -54,7 +54,7 @@ spec:
             - configMapRef:
                 name: gps-tracker-api-config
           ports:
-            - containerPort: 1122
+            - containerPort: 31111
               name: http
           volumeMounts:
             - name: localtime

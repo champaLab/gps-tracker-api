@@ -5,14 +5,14 @@
  *
  * Env:
  *   TRACKER_HOST — server host (default 127.0.0.1)
- *   TRACKER_PORT — server port (default 1122, same as server.js)
+ *   TRACKER_PORT — server port (default 31111, same as server.js)
  *   MOCK_DELAY_MS — pause between lines (default 0)
  *   MOCK_CHUNK — if "1", send each line in small chunks (tests reassembly)
  */
 const net = require('net');
 
 const host = process.env.TRACKER_HOST ?? '127.0.0.1';
-const port = Number(process.env.TRACKER_PORT ?? 1122);
+const port = Number(process.env.TRACKER_PORT ?? 31111);
 const delayMs = Number(process.env.MOCK_DELAY_MS ?? 0);
 const chunkMode = process.env.MOCK_CHUNK === '1';
 
